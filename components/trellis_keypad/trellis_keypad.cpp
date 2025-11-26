@@ -18,6 +18,9 @@ void TrellisKeypad::setup() {
   if (this->keys_.size() != 16) {
     ESP_LOGW(TAG, "Expected 16 keys, but got %u; behavior may be undefined",
              (unsigned) this->keys_.size());
+
+  this->trellis_.setLED(0);
+  this->trellis_.writeDisplay();
   }
 
   // Clear LEDs
