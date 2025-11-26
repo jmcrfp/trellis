@@ -39,7 +39,7 @@ class TrellisKeypad : public key_provider::KeyProvider, public Component {
 
   // debounce: time of last event per key (ms since boot)
   uint32_t last_event_ms_[16] = {0};
-  static constexpr uint32_t DEBOUNCE_MS = 30;
+  static constexpr uint32_t DEBOUNCE_MS = 50;
 };
 
 }  // namespace trellis_keypad
