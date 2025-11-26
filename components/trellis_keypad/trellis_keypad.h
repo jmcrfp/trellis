@@ -24,17 +24,18 @@ class TrellisKeypad : public key_provider::KeyProvider, public Component {
 
   void register_button(TrellisKeypadBinarySensor *button) { buttons_.push_back(button); }
 
-  // LED control for light output
   void set_led_for_key(uint8_t keycode, bool on);
 
-  std::string keys_;        // 16-character mapping
-  Adafruit_Trellis trellis_;  // Adafruit monochrome Trellis driver
-
-  // list of connected binary_sensor buttons
+  std::string keys_;
+  Adafruit_Trellis trellis_;
   std::vector<TrellisKeypadBinarySensor *> buttons_{};
 
  protected:
   uint16_t last_switches_{0};
+
+  // debounce: time of last event per key (ms since boot)
+  uint32_t last_event_ms_[16] = {0};
+  static constexpr uint32_t DEBOUNCE_MS = 30;  // adjust if needed
 };
 
 }  // namespace trellis_keypad
