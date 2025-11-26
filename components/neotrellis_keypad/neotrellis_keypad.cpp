@@ -53,8 +53,7 @@ void NeoTrellisKeypad::loop()
 void NeoTrellisKeypad::dump_config()
 {
     ESP_LOGCONFIG(TAG, "NeoTrellis Keypad:");
-    ESP_LOGCONFIG(TAG, " Keys:");
-    ESP_LOGCONFIG(TAG, this->keys_.c_str());
+    ESP_LOGCONFIG(TAG, " Keys: %s", this->keys_.c_str());
 }
 
 }  // namespace neotrellis_keypad
