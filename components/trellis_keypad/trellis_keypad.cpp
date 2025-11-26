@@ -9,16 +9,15 @@ static const char *const TAG = "trellis_keypad";
 void TrellisKeypad::setup() {
   ESP_LOGI(TAG, "Setting up Adafruit Trellis (monochrome) keypad...");
 
-  // Adafruit_Trellis::begin() returns void
-  this->trellis_.begin(0x70);  // default I2C addr for single Trellis board
+  this->trellis_.begin(0x70);  // default addr
 
   ESP_LOGD(TAG, "Adafruit_Trellis begin(0x70) called");
   ESP_LOGD(TAG, "Configured keys string: '%s' (length=%u)",
-           this->keys_.c_str(), (unsigned)this->keys_.size());
+           this->keys_.c_str(), (unsigned) this->keys_.size());
 
   if (this->keys_.size() != 16) {
     ESP_LOGW(TAG, "Expected 16 keys, but got %u; behavior may be undefined",
-             (unsigned)this->keys_.size());
+             (unsigned) this->keys_.size());
   }
 
   // Clear LEDs
@@ -27,70 +26,50 @@ void TrellisKeypad::setup() {
   }
   this->trellis_.writeDisplay();
 
-  this->last_switches_ = 0;
-  for (uint8_t i = 0; i < 16; i++) {
-    this->last_event_ms_[i] = 0;
-  }
-
   ESP_LOGI(TAG, "Trellis keypad setup complete");
 }
 
+// *** NEW loop() ***
 void TrellisKeypad::loop() {
-  // Read current switch states
+  // Ask Trellis to update its internal key state
   this->trellis_.readSwitches();
 
-  uint16_t current_switches = 0;
   for (uint8_t i = 0; i < 16; i++) {
-    if (this->trellis_.isKeyPressed(i)) {
-      current_switches |= (1u << i);
+    bool pressed = this->trellis_.justPressed(i);
+    bool released = this->trellis_.justReleased(i);
+
+    if (!pressed && !released) {
+      continue;  // no change on this key
     }
-  }
 
-  uint32_t now = millis();
-  uint16_t changed = current_switches ^ this->last_switches_;
+    bool now_pressed = pressed;  // true on press, false on release
 
-  if (changed != 0) {
-    for (uint8_t i = 0; i < 16; i++) {
-      if (changed & (1u << i)) {
-        uint32_t dt = now - this->last_event_ms_[i];
-        if (dt < DEBOUNCE_MS) {
-          ESP_LOGVV(TAG, "Debouncing key index=%u (dt=%u ms)", i, (unsigned) dt);
+    if (i < this->keys_.size()) {
+      uint8_t keycode = this->keys_[i];
+
+      ESP_LOGD(TAG, "Trellis event: index=%u, key='%c', edge=%s",
+               i, keycode, now_pressed ? "PRESSED" : "RELEASED");
+
+      // Update binary_sensors
+      for (auto *button : this->buttons_) {
+        if (button == nullptr)
           continue;
-        }
-        this->last_event_ms_[i] = now;
-
-        bool now_pressed = (current_switches & (1u << i)) != 0;
-
-        if (i < this->keys_.size()) {
-          uint8_t keycode = this->keys_[i];
-
-          ESP_LOGD(TAG, "Trellis event: index=%u, key='%c', edge=%s",
-                   i, keycode, now_pressed ? "PRESSED" : "RELEASED");
-
-          // update binary_sensors
-          for (auto *button : this->buttons_) {
-            if (button == nullptr)
-              continue;
-            if (button->key_ == keycode) {
-              ESP_LOGD(TAG, "Publishing state for key '%c' -> %s",
-                       keycode, now_pressed ? "ON" : "OFF");
-              button->publish_state(now_pressed);
-            }
-          }
-
-          if (now_pressed) {
-            ESP_LOGV(TAG, "Sending key '%c' to key_provider", keycode);
-            this->send_key(keycode);
-          }
-        } else {
-          ESP_LOGW(TAG, "Key index %u has no mapping in keys '%s'",
-                   i, this->keys_.c_str());
+        if (button->key_ == keycode) {
+          ESP_LOGD(TAG, "Publishing state for key '%c' -> %s",
+                   keycode, now_pressed ? "ON" : "OFF");
+          button->publish_state(now_pressed);
         }
       }
+
+      if (now_pressed) {
+        ESP_LOGV(TAG, "Sending key '%c' to key_provider", keycode);
+        this->send_key(keycode);
+      }
+    } else {
+      ESP_LOGW(TAG, "Key index %u has no mapping in keys '%s'",
+               i, this->keys_.c_str());
     }
   }
-
-  this->last_switches_ = current_switches;
 }
 
 void TrellisKeypad::set_led_for_key(uint8_t keycode, bool on) {
