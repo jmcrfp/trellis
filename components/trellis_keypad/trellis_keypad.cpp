@@ -1,5 +1,5 @@
 #include "trellis_keypad.h"
-#include "esphome/core/log.h"
+#include "binary_sensor/trellis_keypad_binary_sensor.h"
 
 namespace esphome {
 namespace trellis_keypad {
@@ -9,14 +9,11 @@ static const char *const TAG = "trellis_keypad";
 void TrellisKeypad::setup() {
   ESP_LOGI(TAG, "Setting up Adafruit Trellis (monochrome) keypad...");
 
-  // Default I2C address for a single Trellis board is usually 0x70
-  if (!this->trellis_.begin(0x70)) {
-    ESP_LOGE(TAG, "Failed to initialize Adafruit_Trellis at address 0x70");
-    mark_failed();
-    return;
-  }
+  // For Adafruit_Trellis, begin(address) is void, does not return success.
+  // If initialization fails, it usually hangs or prints via Serial.
+  this->trellis_.begin(0x70);  // default I2C addr for single Trellis board
 
-  ESP_LOGD(TAG, "Adafruit_Trellis begin() success");
+  ESP_LOGD(TAG, "Adafruit_Trellis begin(0x70) called");
   ESP_LOGD(TAG, "Configured keys string: '%s' (length=%u)",
            this->keys_.c_str(), (unsigned)this->keys_.size());
 
@@ -25,7 +22,7 @@ void TrellisKeypad::setup() {
              (unsigned)this->keys_.size());
   }
 
-  // Clear LEDs initially
+  // Clear LEDs
   for (uint8_t i = 0; i < 16; i++) {
     this->trellis_.clrLED(i);
   }
@@ -36,25 +33,21 @@ void TrellisKeypad::setup() {
 }
 
 void TrellisKeypad::loop() {
-  // Read current state of switches
-  if (!this->trellis_.readSwitches()) {
-    // Typically readSwitches() returns bool; if not needed, you can ignore return
-    ESP_LOGVV(TAG, "readSwitches() called");
-  }
+  // Read current switch states
+  this->trellis_.readSwitches();
 
   uint16_t current_switches = 0;
   for (uint8_t i = 0; i < 16; i++) {
     if (this->trellis_.isKeyPressed(i)) {
-      current_switches |= (1 << i);
+      current_switches |= (1u << i);
     }
   }
 
-  // Detect edges
   uint16_t changed = current_switches ^ this->last_switches_;
   if (changed != 0) {
     for (uint8_t i = 0; i < 16; i++) {
-      if (changed & (1 << i)) {
-        bool now_pressed = (current_switches & (1 << i)) != 0;
+      if (changed & (1u << i)) {
+        bool now_pressed = (current_switches & (1u << i)) != 0;
 
         if (i < this->keys_.size()) {
           uint8_t keycode = this->keys_[i];
@@ -62,8 +55,10 @@ void TrellisKeypad::loop() {
           ESP_LOGD(TAG, "Trellis event: index=%u, key='%c', edge=%s",
                    i, keycode, now_pressed ? "PRESSED" : "RELEASED");
 
-          // update binary_sensors
+          // update all matching binary_sensors
           for (auto *button : this->buttons_) {
+            if (button == nullptr)
+              continue;
             if (button->key_ == keycode) {
               ESP_LOGD(TAG, "Publishing state for key '%c' -> %s",
                        keycode, now_pressed ? "ON" : "OFF");
@@ -75,8 +70,9 @@ void TrellisKeypad::loop() {
             ESP_LOGV(TAG, "Sending key '%c' to key_provider", keycode);
             this->send_key(keycode);
           }
+
         } else {
-          ESP_LOGW(TAG, "Key index %u has no mapping in keys string '%s'",
+          ESP_LOGW(TAG, "Key index %u has no mapping in keys '%s'",
                    i, this->keys_.c_str());
         }
       }
@@ -87,8 +83,7 @@ void TrellisKeypad::loop() {
 }
 
 void TrellisKeypad::set_led_for_key(uint8_t keycode, bool on) {
-  // Find index from key
-  int index = this->keys_.find_first_of((char)keycode);
+  int index = this->keys_.find_first_of((char) keycode);
   if (index < 0 || index >= 16) {
     ESP_LOGW(TAG, "set_led_for_key: key '%c' not found in keys '%s'",
              keycode, this->keys_.c_str());
@@ -96,9 +91,9 @@ void TrellisKeypad::set_led_for_key(uint8_t keycode, bool on) {
   }
 
   if (on) {
-    this->trellis_.setLED((uint8_t)index);
+    this->trellis_.setLED((uint8_t) index);
   } else {
-    this->trellis_.clrLED((uint8_t)index);
+    this->trellis_.clrLED((uint8_t) index);
   }
   this->trellis_.writeDisplay();
 }
@@ -107,7 +102,7 @@ void TrellisKeypad::dump_config() {
   ESP_LOGCONFIG(TAG, "Adafruit Trellis (monochrome) Keypad:");
   ESP_LOGCONFIG(TAG, "  Keys: %s", this->keys_.c_str());
   ESP_LOGCONFIG(TAG, "  Registered binary_sensor buttons: %u",
-                (unsigned)this->buttons_.size());
+                (unsigned) this->buttons_.size());
 }
 
 }  // namespace trellis_keypad
