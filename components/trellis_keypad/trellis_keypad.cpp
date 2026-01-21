@@ -29,6 +29,19 @@ void TrellisKeypad::setup() {
   }
   this->trellis_.writeDisplay();
 
+  // Light up all the LEDs in order
+  for (uint8_t i = 0; i < 16; i++) {
+    this->trellis_.setLED(i);
+    this->trellis_.writeDisplay();
+    delay(50);
+  }
+  // Then turn them off
+  for (uint8_t i = 0; i < 16; i++) {
+    this->trellis_.clrLED(i);
+    this->trellis_.writeDisplay();
+    delay(50);
+  }
+
   ESP_LOGI(TAG, "Trellis keypad setup complete");
 }
 
