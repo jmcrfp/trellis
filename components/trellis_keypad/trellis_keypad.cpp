@@ -34,6 +34,7 @@ void TrellisKeypad::setup() {
 
 // *** NEW loop() ***
 void TrellisKeypad::loop() {
+  delay(30);
   // Ask Trellis to update its internal key state
   this->trellis_.readSwitches();
 
